@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from 'src/database/prisma.service';
+import { PrismaService } from 'src/database/prisma.service.js';
 import * as bcrypt from 'bcryptjs';
-import { CreateUserDto } from './dto/create-user.dto';
-import { User } from './user.types';
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { User } from './user.types.js';
 
 @Injectable()
 export class UserRepository {

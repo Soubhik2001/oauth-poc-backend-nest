@@ -6,8 +6,8 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { TaskService } from './task.service';
-import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { TaskService } from './task.service.js';
+import { UpdateTaskStatusDto } from './dto/update-task-status.dto.js';
 
 @Controller('task')
 export class TaskController {

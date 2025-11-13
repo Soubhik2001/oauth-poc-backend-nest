@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
-import { UserRepository } from '../user/user.repository';
+import { UserRepository } from '../user/user.repository.js';
 import * as crypto from 'crypto';
 
 @Injectable()

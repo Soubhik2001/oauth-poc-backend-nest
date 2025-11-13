@@ -7,11 +7,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { UserService } from './user.service';
-import { CreateUserDto } from './dto/create-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
+import { UserService } from './user.service.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { LoginUserDto } from './dto/login-user.dto.js';
 
-@Controller('user')
+@Controller('users')
 export class UserController {
   private readonly logger = new Logger(UserController.name);
 

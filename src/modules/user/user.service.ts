@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UserRepository } from './user.repository';
-import { CreateUserDto } from './dto/create-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
-import { RoleRepository } from '../role/role.repository';
-import { TaskRepository } from '../task/task.repository';
+import { UserRepository } from './user.repository.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { LoginUserDto } from './dto/login-user.dto.js';
+import { RoleRepository } from '../role/role.repository.js';
+import { TaskRepository } from '../task/task.repository.js';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
