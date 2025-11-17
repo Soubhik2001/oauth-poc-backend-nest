@@ -6,7 +6,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma/client"
+  // output   = "../generated/prisma/client"
 }
 
 datasource db {
@@ -15,32 +15,35 @@ datasource db {
 }
 
 model Role {
-  id    Int     @id @default(autoincrement())
-  name  String  @unique
-  users User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  users           User[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tasksRequesting Task[]   @relation("RequestedRole")
 }
 
 model User {
-  id       Int     @id @default(autoincrement())
-  name     String
-  email    String  @unique
-  password String
-  country  String?
-  role     Role    @relation(fields: [roleId], references: [id])
-  roleId   Int
-  tasks    Task[]
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  country   String?
+  role      Role     @relation(fields: [roleId], references: [id])
+  roleId    Int
+  tasks     Task[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Task {
-  id        Int      @id @default(autoincrement())
-  type      String
-  status    String   @default("pending")
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  type            String
+  status          String   @default("pending")
+  requestedRole   Role?    @relation("RequestedRole", fields: [requestedRoleId], references: [id])
+  requestedRoleId Int?
+  user            User     @relation(fields: [userId], references: [id])
+  userId          Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

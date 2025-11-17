@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User, Role } from '@prisma/client';
 import { RegisterDto } from '../auth/dto/register.dto';
 
-// Define a type for the user object with its role included
+import { User, Role } from '@prisma/client';
+
 export type UserWithRole = User & { role: Role };
 
 @Injectable()
@@ -16,7 +16,6 @@ export class UsersService {
       roleId: number;
     },
   ): Promise<User> {
-    // Note: The roleId and hashed password are provided by the AuthService
     return this.prisma.user.create({
       data: {
         name: data.name,
@@ -31,7 +30,7 @@ export class UsersService {
   async findOneByEmail(email: string): Promise<UserWithRole | null> {
     return this.prisma.user.findUnique({
       where: { email },
-      include: { role: true }, // Include role for authentication/authorization checks
+      include: { role: true },
     });
   }
 }

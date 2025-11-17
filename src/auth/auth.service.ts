@@ -12,7 +12,6 @@ import { RegisterDto } from './dto/register.dto';
 import { RoleEnum } from '../common/constants/roles.enum';
 import { User, Role } from '@prisma/client';
 
-// This type is returned by LocalStrategy's validate()
 export type AuthUser = User & { role: Role };
 
 @Injectable()
@@ -24,23 +23,21 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  // 1. Registration (No changes here)
   async register(registerDto: RegisterDto): Promise<{ message: string }> {
-    const { email, password, role } = registerDto;
+    const { email, password, role: requestedRoleName } = registerDto;
 
     if (await this.usersService.findOneByEmail(email)) {
       throw new BadRequestException('User with this email already exists.');
     }
 
-    const dbRoleName =
-      role === 'general_public' ? RoleEnum.GENERAL_PUBLIC : (role as RoleEnum);
-
-    const roleRecord = await this.prisma.role.findUnique({
-      where: { name: dbRoleName },
+    const defaultRole = await this.prisma.role.findUnique({
+      where: { name: RoleEnum.GENERAL_PUBLIC },
     });
 
-    if (!roleRecord) {
-      throw new BadRequestException('Invalid role specified.');
+    if (!defaultRole) {
+      throw new BadRequestException(
+        'General Public role not found. Please seed database.',
+      );
     }
 
     const hashedPassword: string = await bcrypt.hash(password, 10);
@@ -48,55 +45,57 @@ export class AuthService {
     const user = await this.usersService.createUser({
       ...registerDto,
       password: hashedPassword,
-      roleId: roleRecord.id,
+      roleId: defaultRole.id,
     });
 
-    if (roleRecord.name !== String(RoleEnum.GENERAL_PUBLIC)) {
-      await this.tasksService.createPendingTaskForUser(user.id);
+    if (
+      requestedRoleName !== String(RoleEnum.GENERAL_PUBLIC) &&
+      requestedRoleName !== String(RoleEnum.SUPER_ADMIN)
+    ) {
+      const requestedRoleRecord = await this.prisma.role.findUnique({
+        where: { name: requestedRoleName },
+      });
+
+      if (!requestedRoleRecord) {
+        throw new BadRequestException(
+          `The requested role '${requestedRoleName}' does not exist.`,
+        );
+      }
+
+      await this.tasksService.createPendingTaskForUser(
+        user.id,
+        'ROLE_UPGRADE',
+        requestedRoleRecord.id,
+      );
       return {
-        message: `Registration successful. An approval task is PENDING for your role: ${roleRecord.name}.`,
+        message: `Registration successful as General Public. Your request for the '${requestedRoleName}' role is pending approval.`,
       };
     }
 
     return {
-      message: 'Registration successful. You are registered as General Public.',
+      message: 'Registration successful as General Public.',
     };
   }
 
-  // 2. Resource Owner Password Credentials Grant (Internal Validation)
   async validateUser(email: string, pass: string): Promise<AuthUser | null> {
-    // --- DEBUGGING LOGS ---
-    console.log(
-      `[AuthService] validateUser: Attempting to validate user: ${email}`,
-    );
-
     const userWithRole = await this.usersService.findOneByEmail(email);
 
     if (!userWithRole) {
-      console.log(`[AuthService] validateUser: FAILED - User not found.`);
-      return null;
+      return null; // User not found
     }
-
-    console.log(
-      `[AuthService] validateUser: User found. Comparing passwords...`,
-    );
 
     const isMatch = await bcrypt.compare(pass, userWithRole.password);
 
     if (isMatch) {
-      console.log(`[AuthService] validateUser: SUCCESS - Passwords match.`);
-      return userWithRole;
+      return userWithRole; // Password matches, login is valid
     } else {
-      console.log(
-        `[AuthService] validateUser: FAILED - Passwords do not match.`,
-      );
-      return null;
+      return null; // Password does not match
     }
-    // --- END DEBUGGING LOGS ---
   }
 
-  // 3. Token Issuance (The Access Token Grant)
-  async signIn(user: AuthUser): Promise<{ access_token: string }> {
+  async signIn(
+    user: AuthUser,
+  ): Promise<{ access_token: string; role: string }> {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -105,6 +104,7 @@ export class AuthService {
 
     return {
       access_token: await this.jwtService.signAsync(payload),
+      role: user.role.name,
     };
   }
 }

@@ -4,9 +4,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TasksModule } from './tasks/tasks.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { OauthModule } from './oauth/oauth.module'; // Import Oauth Module
-import { APP_GUARD } from '@nestjs/core';
-import { RolesGuard } from './common/guards/roles.guard';
+import { OauthModule } from './oauth/oauth.module';
 
 @Module({
   imports: [
@@ -17,13 +15,8 @@ import { RolesGuard } from './common/guards/roles.guard';
     UsersModule,
     TasksModule,
     AuthModule,
-    OauthModule, // New OAuth module
+    OauthModule,
   ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
-  ],
+  providers: [],
 })
 export class AppModule {}

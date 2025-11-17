@@ -12,12 +12,10 @@ import { LocalAuthGuard } from '../common/guards/local-auth.guard';
 import type { Response } from 'express';
 import { User, Role } from '@prisma/client';
 
-// Define a type for our request user (from LocalAuthGuard)
 type RequestWithUser = {
   user: User & { role: Role };
 };
 
-// DTO for /authorize endpoint
 class AuthorizeDto {
   client_id: string;
   redirect_uri: string;
@@ -26,7 +24,6 @@ class AuthorizeDto {
   password: string;
 }
 
-// DTO for /token endpoint
 class TokenDto {
   grant_type: string;
   code?: string;
@@ -40,23 +37,20 @@ export class OauthController {
   constructor(private oauthService: OauthService) {}
 
   @Post('authorize')
-  @UseGuards(LocalAuthGuard) // This validates email/password
-  async authorize(
-    @Request() req: RequestWithUser, // 'user' is attached by LocalAuthGuard
+  @UseGuards(LocalAuthGuard)
+  authorize(
+    @Request() req: RequestWithUser,
     @Body() body: AuthorizeDto,
     @Res() res: Response,
   ) {
     const { client_id, redirect_uri } = body;
 
-    // --- FIX: Pass 'redirect_uri' to the service ---
-    const authorizationCode = await this.oauthService.grantAuthorizationCode(
+    const authorizationCode = this.oauthService.grantAuthorizationCode(
       req.user,
       client_id,
-      redirect_uri, // This argument was missing
+      redirect_uri,
     );
-    // --- FIX END ---
 
-    // Redirect with the code
     const url = new URL(redirect_uri);
     url.searchParams.set('code', authorizationCode);
     res.redirect(url.toString());
@@ -71,15 +65,12 @@ export class OauthController {
         throw new BadRequestException('Missing authorization code.');
       }
 
-      // --- FIX: Pass 'redirect_uri' to the service for validation ---
       const tokenResponse = await this.oauthService.exchangeCodeForToken(
         code,
         client_id,
         client_secret,
-        redirect_uri, // This argument was missing
+        redirect_uri,
       );
-      // --- FIX END ---
-
       return res.json(tokenResponse);
     }
 

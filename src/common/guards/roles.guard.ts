@@ -1,8 +1,14 @@
-// src/common/guards/roles.guard.ts
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { RoleEnum } from '../constants/roles.enum';
+
+// This is the type of the user object attached by JwtStrategy
+interface RequestUser {
+  userId: number;
+  email: string;
+  roleName: string;
+}
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -18,9 +24,27 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const { user } = context.switchToHttp().getRequest<{ user: RequestUser }>();
 
-    // Check if the user's roleName (attached by JwtStrategy) is in the required roles list
-    return requiredRoles.some((role) => user.roleName === role);
+    if (!user) {
+      console.log('[RolesGuard] Access DENIED. No user on request.');
+      return false;
+    }
+
+    console.log(
+      `[RolesGuard] Checking roles. User has role: '${user.roleName}'. Required: ${requiredRoles.join(', ')}`,
+    );
+
+    const hasRole = requiredRoles.some(
+      (role) => user.roleName === String(role),
+    );
+
+    if (!hasRole) {
+      console.log(
+        `[RolesGuard] Access DENIED. User role '${user.roleName}' does not match required role '${requiredRoles[0]}'.`,
+      );
+    }
+
+    return hasRole;
   }
 }

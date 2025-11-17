@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Param,
   UseGuards,
   HttpException,
@@ -10,15 +11,20 @@ import { TasksService } from './tasks.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RoleEnum } from '../common/constants/roles.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { UserWithRole } from '../users/users.service';
+import { RolesGuard } from 'src/common/guards/roles.guard';
 
 @Controller('tasks')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class TasksController {
   constructor(private tasksService: TasksService) {}
 
-  // Only Admins or Medical Officers can approve tasks
-  @Roles(RoleEnum.ADMIN, RoleEnum.MEDICAL_OFFICER)
+  @Get('pending')
+  @Roles(RoleEnum.SUPER_ADMIN)
+  async getPendingTasks() {
+    return this.tasksService.getPendingTasks();
+  }
+
+  @Roles(RoleEnum.SUPER_ADMIN)
   @Post(':userId/approve')
   async approveTask(@Param('userId') userId: string) {
     const task = await this.tasksService.updateTaskStatus(
@@ -37,7 +43,7 @@ export class TasksController {
     };
   }
 
-  @Roles(RoleEnum.ADMIN, RoleEnum.MEDICAL_OFFICER)
+  @Roles(RoleEnum.SUPER_ADMIN)
   @Post(':userId/reject')
   async rejectTask(@Param('userId') userId: string) {
     const task = await this.tasksService.updateTaskStatus(
