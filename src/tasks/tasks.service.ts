@@ -38,6 +38,7 @@ export class TasksService {
   async updateTaskStatus(
     userId: number,
     newStatus: 'approved' | 'rejected',
+    comment?: string,
   ): Promise<Task> {
     // Find the pending task for this user
     const task = await this.prisma.task.findFirst({
@@ -65,12 +66,12 @@ export class TasksService {
       // Use a transaction to update BOTH the User's role AND the Task status
       try {
         const [updatedTask] = await this.prisma.$transaction([
-          // 1. Update the task
+          // Update the task
           this.prisma.task.update({
             where: { id: task.id },
-            data: { status: 'approved' },
+            data: { status: 'approved', comment: comment },
           }),
-          // 2. Update the user's roleId to the one from the task
+          // Update the user's roleId to the one from the task
           this.prisma.user.update({
             where: { id: userId },
             data: { roleId: task.requestedRoleId },
@@ -84,7 +85,7 @@ export class TasksService {
       // REJECT LOGIC
       return this.prisma.task.update({
         where: { id: task.id },
-        data: { status: 'rejected' },
+        data: { status: 'rejected', comment: comment },
       });
     }
   }
@@ -104,8 +105,8 @@ export class TasksService {
             email: true,
           },
         },
-        // This now fetches the full Role object via the relation
         requestedRole: true,
+        documents: true,
       },
     });
   }
