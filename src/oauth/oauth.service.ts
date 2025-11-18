@@ -63,7 +63,12 @@ export class OauthService {
     clientId: string,
     clientSecret: string,
     redirectUri?: string,
-  ): Promise<{ access_token: string; token_type: string; expires_in: number }> {
+  ): Promise<{
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+    role: string;
+  }> {
     if (
       clientId !== MOCK_CLIENT.clientId ||
       clientSecret !== MOCK_CLIENT.clientSecret
@@ -99,6 +104,7 @@ export class OauthService {
       access_token: accessToken,
       token_type: 'Bearer',
       expires_in: expiresIn,
+      role: codeData.roleName,
     };
   }
 }

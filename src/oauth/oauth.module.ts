@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt'; // Required by OauthService for signing tokens
+import { JwtModule } from '@nestjs/jwt';
 import { TasksModule } from '../tasks/tasks.module';
 import { AuthModule } from '../auth/auth.module';
 import { OauthService } from './oauth.service';
@@ -10,7 +10,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   imports: [
     ConfigModule,
     TasksModule,
-    // Import AuthModule to get access to LocalStrategy/LocalAuthGuard
     AuthModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

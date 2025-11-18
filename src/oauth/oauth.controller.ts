@@ -19,17 +19,16 @@ type RequestWithUser = {
 class AuthorizeDto {
   client_id: string;
   redirect_uri: string;
-  response_type: 'code';
   email: string;
   password: string;
 }
 
 class TokenDto {
-  grant_type: string;
-  code?: string;
+  grant_type: 'authorization_code';
+  code: string;
   client_id: string;
   client_secret: string;
-  redirect_uri?: string;
+  redirect_uri: string;
 }
 
 @Controller('oauth')
@@ -51,9 +50,7 @@ export class OauthController {
       redirect_uri,
     );
 
-    const url = new URL(redirect_uri);
-    url.searchParams.set('code', authorizationCode);
-    res.redirect(url.toString());
+    return res.json({ code: authorizationCode });
   }
 
   @Post('token')
