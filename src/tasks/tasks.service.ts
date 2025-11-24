@@ -5,12 +5,23 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Task } from '@prisma/client';
+import { Mutex, MutexInterface } from 'async-mutex';
 
 @Injectable()
 export class TasksService {
+  // Container for locks based on User ID
+  private readonly locks: Map<string, MutexInterface> = new Map();
+
   constructor(private prisma: PrismaService) {}
 
-  // Accepts 'requestedRoleId' as a number
+  // Helper to get lock (convert number ID to string key)
+  private getLock(key: string): MutexInterface {
+    if (!this.locks.has(key)) {
+      this.locks.set(key, new Mutex());
+    }
+    return this.locks.get(key)!;
+  }
+
   async createPendingTaskForUser(
     userId: number,
     type: string,
@@ -40,57 +51,59 @@ export class TasksService {
     newStatus: 'approved' | 'rejected',
     comment?: string,
   ): Promise<Task> {
-    // Find the pending task for this user
-    const task = await this.prisma.task.findFirst({
-      where: {
-        userId: userId,
-        status: 'pending',
-        type: 'ROLE_UPGRADE',
-      },
-    });
+    // Lock based on userId.
+    // This prevents two admins from acting on the same user's task simultaneously.
+    const mutex = this.getLock(userId.toString());
 
-    if (!task) {
-      throw new NotFoundException(
-        `No pending approval task found for user ${userId}`,
-      );
-    }
+    return await mutex.runExclusive(async () => {
+      // DOUBLE-CHECK: Find the pending task INSIDE the lock
+      const task = await this.prisma.task.findFirst({
+        where: {
+          userId: userId,
+          status: 'pending', // Only look for PENDING tasks
+          type: 'ROLE_UPGRADE',
+        },
+      });
 
-    if (newStatus === 'approved') {
-      // Check if the task has a role ID
-      if (!task.requestedRoleId) {
-        throw new BadRequestException(
-          'Task is incomplete and has no requested role ID.',
+      // If Admin A finished first, this will be null for Admin B
+      if (!task) {
+        throw new NotFoundException(
+          `No pending approval task found for user ${userId}. It may have already been processed.`,
         );
       }
 
-      // Use a transaction to update BOTH the User's role AND the Task status
-      try {
-        const [updatedTask] = await this.prisma.$transaction([
-          // Update the task
-          this.prisma.task.update({
-            where: { id: task.id },
-            data: { status: 'approved', comment: comment },
-          }),
-          // Update the user's roleId to the one from the task
-          this.prisma.user.update({
-            where: { id: userId },
-            data: { roleId: task.requestedRoleId },
-          }),
-        ]);
-        return updatedTask;
-      } catch (error) {
-        throw new Error(`Transaction failed: ${error}`);
+      if (newStatus === 'approved') {
+        if (!task.requestedRoleId) {
+          throw new BadRequestException(
+            'Task is incomplete and has no requested role ID.',
+          );
+        }
+
+        try {
+          const [updatedTask] = await this.prisma.$transaction([
+            this.prisma.task.update({
+              where: { id: task.id },
+              data: { status: 'approved', comment: comment },
+            }),
+            this.prisma.user.update({
+              where: { id: userId },
+              data: { roleId: task.requestedRoleId },
+            }),
+          ]);
+          return updatedTask;
+        } catch (error) {
+          throw new Error(`Transaction failed: ${error}`);
+        }
+      } else {
+        // REJECT LOGIC
+        return this.prisma.task.update({
+          where: { id: task.id },
+          data: { status: 'rejected', comment: comment },
+        });
       }
-    } else {
-      // REJECT LOGIC
-      return this.prisma.task.update({
-        where: { id: task.id },
-        data: { status: 'rejected', comment: comment },
-      });
-    }
+    });
   }
 
-  // Include the 'requestedRole' *object*
   async getPendingTasks() {
     return this.prisma.task.findMany({
       where: {
