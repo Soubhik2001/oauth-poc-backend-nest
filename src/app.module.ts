@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { OauthModule } from './oauth/oauth.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { join } from 'path';
     TasksModule,
     AuthModule,
     OauthModule,
+    SettingsModule,
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',

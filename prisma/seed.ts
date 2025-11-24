@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { RoleEnum } from '../src/common/constants/roles.enum';
 import * as bcrypt from 'bcrypt';
 
@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 const prisma: PrismaClient = new PrismaClient();
 
 async function main() {
+  // --- 1. SEED ROLES ---
   const roleNames = Object.values(RoleEnum);
   console.log('Seeding roles...');
   for (const name of roleNames) {
@@ -18,6 +19,22 @@ async function main() {
     console.log(`Created/Updated role: ${name}`);
   }
   console.log('Role seeding complete.');
+
+  // --- 2. SEED SETTINGS (NEW) ---
+  console.log('Seeding settings...');
+  await prisma.setting.upsert({
+    where: { key: 'MAX_FILE_SIZE' },
+    // Important: leave update empty so we don't overwrite custom admin changes
+    update: {},
+    create: {
+      key: 'MAX_FILE_SIZE',
+      value: '5242880', // Default: 5MB (5 * 1024 * 1024)
+    },
+  });
+  console.log(
+    'Settings seeding complete (MAX_FILE_SIZE initialized if missing).',
+  );
+  // --- 3. SEED SUPERADMIN ---
   const superadminRole = await prisma.role.findUnique({
     where: { name: RoleEnum.SUPER_ADMIN },
   });
