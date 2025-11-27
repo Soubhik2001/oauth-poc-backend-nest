@@ -4,9 +4,7 @@ import {
   MinLength,
   IsIn,
   IsOptional,
-  // ValidateIf,
 } from 'class-validator';
-// import { RoleEnum } from '../../common/constants/roles.enum';
 
 export class RegisterDto {
   @IsString()
@@ -19,12 +17,6 @@ export class RegisterDto {
   @IsString()
   @MinLength(6, { message: 'Password must be at least 6 characters long.' })
   password: string;
-
-  // --- FIX: REMOVED 'confirmPassword' ---
-  // @ValidateIf(o => o.password)
-  // @MinLength(6, { message: 'Passwords must match.' })
-  // confirmPassword: string;
-  // --- FIX END ---
 
   @IsOptional()
   @IsString()

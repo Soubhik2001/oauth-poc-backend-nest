@@ -9,7 +9,6 @@ import { UsersService } from '../users/users.service';
 import { TasksService } from '../tasks/tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
-import { RoleEnum } from '../common/constants/roles.enum';
 import { User, Role } from '@prisma/client';
 import type { Express } from 'express';
 
@@ -35,23 +34,27 @@ export class AuthService {
       throw new BadRequestException('User with this email already exists.');
     }
 
+    // Rely on string literal matching the DB value for the default role
     const defaultRole = await this.prisma.role.findUnique({
-      where: { name: RoleEnum.GENERAL_PUBLIC },
+      where: { name: 'general public' },
     });
+
     if (!defaultRole) {
       throw new BadRequestException(
-        'General Public role not found. Please seed database.',
+        "Default role 'general public' not found. Please seed database.",
       );
     }
 
     // Check if docs are required BEFORE starting the transaction
     let roleUpgradeRequired = false;
-
     let requestedRoleRecord: Role | null = null;
 
+    // We check against strings now.
+    // Logic: If they aren't asking for 'general public' AND they aren't trying to be 'superadmin'
+    // (which usually shouldn't be allowed via public register anyway), then it is an upgrade request.
     if (
-      requestedRoleName !== String(RoleEnum.GENERAL_PUBLIC) &&
-      requestedRoleName !== String(RoleEnum.SUPER_ADMIN)
+      requestedRoleName !== 'general public' &&
+      requestedRoleName !== 'superadmin'
     ) {
       roleUpgradeRequired = true;
       if (!files || files.length === 0) {
@@ -60,6 +63,9 @@ export class AuthService {
         );
       }
 
+      // Dynamic Database Check:
+      // We check if the string provided exists in the Role table.
+      // This allows you to add new roles to DB without changing this code.
       requestedRoleRecord = await this.prisma.role.findUnique({
         where: { name: requestedRoleName },
       });
@@ -82,7 +88,7 @@ export class AuthService {
             email: registerDto.email,
             password: hashedPassword,
             country: registerDto.country,
-            roleId: defaultRole.id, // Always assign 'general public'
+            roleId: defaultRole.id, // Always assign 'general public' initially
           },
         });
 
@@ -99,12 +105,11 @@ export class AuthService {
           });
 
           // Create Documents
-          // We map the files to an array of promise creations to run them in parallel within the transaction
           const documentCreates = files.map((file) =>
             prismaTx.document.create({
               data: {
                 filename: file.originalname,
-                path: file.filename, // Multer filename (e.g., timestamp-random.pdf)
+                path: file.filename,
                 mimetype: file.mimetype,
                 taskId: task.id,
               },
@@ -115,14 +120,13 @@ export class AuthService {
         }
       });
     } catch (error) {
-      // The User, Task, and Documents were all rolled back.
       console.error('Registration Transaction Failed:', error);
       throw new InternalServerErrorException(
         'Registration failed. Please try again.',
       );
     }
 
-    // 4. Return Success Message
+    // Return Success Message
     if (roleUpgradeRequired) {
       return {
         message: `Registration successful as General Public. Your request for the '${requestedRoleName}' role is pending approval.`,

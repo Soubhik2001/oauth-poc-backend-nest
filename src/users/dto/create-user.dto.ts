@@ -1,11 +1,4 @@
-import {
-  IsString,
-  IsEmail,
-  MinLength,
-  IsIn,
-  IsOptional,
-} from 'class-validator';
-import { RoleEnum } from '../../common/constants/roles.enum';
+import { IsString, IsEmail, MinLength, IsOptional } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -23,7 +16,7 @@ export class CreateUserDto {
   @IsString()
   country?: string;
 
-  // Allow ALL roles, including superadmin
-  @IsIn(Object.values(RoleEnum))
+  // validation is now handled dynamically by the database check in the service
+  @IsString()
   role: string;
 }
