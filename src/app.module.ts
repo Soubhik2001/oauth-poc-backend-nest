@@ -8,6 +8,7 @@ import { OauthModule } from './oauth/oauth.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { SettingsModule } from './settings/settings.module';
+import { LocationModule } from './location/location.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SettingsModule } from './settings/settings.module';
     AuthModule,
     OauthModule,
     SettingsModule,
+    LocationModule,
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/uploads',
