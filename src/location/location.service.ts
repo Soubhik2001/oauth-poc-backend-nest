@@ -9,33 +9,30 @@ export interface LocationResponse {
 }
 
 const COUNTRY_MAP: Record<string, string> = {
-  JM: 'Jamaica',
+  AI: 'Anguilla',
+  AG: 'Antigua and Barbuda',
+  AW: 'Aruba',
   BS: 'Bahamas',
   BB: 'Barbados',
-  TT: 'Trinidad & Tobago',
-  AG: 'Antigua & Barbuda',
-  LC: 'Saint Lucia',
-  PR: 'Puerto Rico',
-  DO: 'Dominican Republic',
-  HT: 'Haiti',
-  CU: 'Cuba',
-  KY: 'Cayman Islands',
-  VI: 'US Virgin Islands',
+  BZ: 'Belize',
+  BM: 'Bermuda',
+  BQ: 'Bonaire, Sint Eustatius and Saba',
   VG: 'British Virgin Islands',
-  SX: 'Sint Maarten',
-  AW: 'Aruba',
+  KY: 'Cayman Islands',
   CW: 'Curaçao',
-  GD: 'Grenada',
   DM: 'Dominica',
-  KN: 'Saint Kitts & Nevis',
-  VC: 'St. Vincent & Grenadines',
-  AI: 'Anguilla',
+  GD: 'Grenada',
+  GY: 'Guyana',
+  HT: 'Haiti',
+  JM: 'Jamaica',
   MS: 'Montserrat',
-  TC: 'Turks & Caicos',
-  GP: 'Guadeloupe',
-  MQ: 'Martinique',
-  BL: 'St. Barthélemy',
-  MF: 'St. Martin',
+  KN: 'Saint Kitts and Nevis',
+  LC: 'Saint Lucia',
+  SX: 'Sint Maarten',
+  VC: 'Saint Vincent and the Grenadines',
+  SR: 'Suriname',
+  TT: 'Trinidad and Tobago',
+  TC: 'Turks and Caicos Islands',
 };
 
 const CARIBBEAN_CODES = new Set(Object.keys(COUNTRY_MAP));
@@ -64,7 +61,7 @@ export class LocationService {
       }));
 
     this.logger.log(
-      `Indexing ${this.caribbeanCities.length} Caribbean cities...`,
+      `Indexing ${this.caribbeanCities.length} CARPHA Member cities...`,
     );
 
     this.index = new KDBush(
@@ -106,6 +103,7 @@ export class LocationService {
       );
       this.logger.log(`[DEBUG] Distance to user: ${Math.round(distKm)} km`);
 
+      // Strict 10km check
       if (distKm <= 10) {
         const countryName = COUNTRY_MAP[city.country] || city.country;
         const result = `${city.name}, ${countryName}`;
