@@ -4,15 +4,13 @@ import {
   Body,
   UseInterceptors,
   UploadedFiles,
-  // ParseFilePipe,
-  // MaxFileSizeValidator,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { CompleteInviteDto } from '../auth/dto/complete-invite.dto';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-// import { DebugFileValidator } from './debug-file.validator';
 import { DynamicFileValidatorPipe } from '../common/pipes/dynamic-file-validator.pipe';
 
 @Controller('api/users')
@@ -40,5 +38,10 @@ export class AuthController {
     files: Array<Express.Multer.File>,
   ) {
     return this.authService.register(registerDto, files);
+  }
+
+  @Post('complete-invite')
+  async completeInvite(@Body() completeInviteDto: CompleteInviteDto) {
+    return this.authService.completeInvite(completeInviteDto);
   }
 }

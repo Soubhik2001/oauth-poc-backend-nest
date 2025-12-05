@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from '../auth/dto/register.dto';
-import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { User, Role } from '@prisma/client';
 import { CreateUserDto } from './dto/create-user.dto';
 import { Mutex, MutexInterface } from 'async-mutex';
@@ -14,12 +14,10 @@ export type UserWithRole = User & { role: Role };
 
 @Injectable()
 export class UsersService {
-  // Container for locks based on Email
   private readonly locks: Map<string, MutexInterface> = new Map();
 
   constructor(private prisma: PrismaService) {}
 
-  //Helper to get or create a lock for a specific key
   private getLock(key: string): MutexInterface {
     if (!this.locks.has(key)) {
       this.locks.set(key, new Mutex());
@@ -29,18 +27,21 @@ export class UsersService {
 
   async createUser(
     data: Omit<RegisterDto, 'confirmPassword'> & {
-      password: string;
+      password?: string;
       roleId: number;
+      inviteToken?: string;
+      inviteTokenExpiry?: Date;
     },
   ): Promise<User> {
-    // Note: You might want to apply locking here too if public registration needs it.
     return this.prisma.user.create({
       data: {
         name: data.name,
         email: data.email,
-        password: data.password,
+        password: data.password || null,
         country: data.country,
         roleId: data.roleId,
+        inviteToken: data.inviteToken,
+        inviteTokenExpiry: data.inviteTokenExpiry,
       },
     });
   }
@@ -53,15 +54,10 @@ export class UsersService {
   }
 
   async createByAdmin(createUserDto: CreateUserDto): Promise<User> {
-    const { email, password, role: roleName, name, country } = createUserDto;
-
-    // Acquire Lock based on Email
+    const { email, role: roleName, name, country } = createUserDto;
     const mutex = this.getLock(email);
 
-    // Run exclusively. If locked, 2nd request waits here.
     return await mutex.runExclusive(async () => {
-      // A. DOUBLE-CHECK: Check if user exists (Must be inside the lock)
-      // If Admin B was waiting, this check will now return TRUE and stop them.
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
       });
@@ -69,27 +65,37 @@ export class UsersService {
         throw new ConflictException('User with this email already exists.');
       }
 
-      // B. Find the Role ID
       const role = await this.prisma.role.findUnique({
         where: { name: roleName },
       });
       if (!role) {
         throw new BadRequestException(`Role '${roleName}' does not exist.`);
       }
+      const token = crypto.randomBytes(32).toString('hex');
 
-      // C. Hash Password
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // D. Create User DIRECTLY
-      return this.prisma.user.create({
+      const newUser = await this.prisma.user.create({
         data: {
           name,
           email,
-          password: hashedPassword,
+          password: null,
           country,
           roleId: role.id,
+          inviteToken: token,
+          inviteTokenExpiry: null,
         },
       });
+
+      const webBaseUrl = process.env.WEB_ADMIN_URL || 'http://localhost:5173';
+      const inviteLink = `${webBaseUrl}/setup-account?token=${token}`;
+
+      console.log('----------------------------------------------------');
+      console.log(`[EMAIL MOCK] To: ${email}`);
+      console.log(`[EMAIL MOCK] Subject: Welcome to Carpha Admin`);
+      console.log(`[EMAIL MOCK] Click here to set your password:`);
+      console.log(inviteLink);
+      console.log('----------------------------------------------------');
+
+      return newUser;
     });
   }
 }

@@ -2,13 +2,17 @@ import {
   Injectable,
   BadRequestException,
   InternalServerErrorException,
+  UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { TasksService } from '../tasks/tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { CompleteInviteDto } from './dto/complete-invite.dto';
 import { User, Role } from '@prisma/client';
 import type { Express } from 'express';
 
@@ -27,74 +31,57 @@ export class AuthService {
     registerDto: RegisterDto,
     files: Array<Express.Multer.File>,
   ): Promise<{ message: string }> {
-    const { email, password, role: requestedRoleName } = registerDto;
+    const { email, role: requestedRoleName } = registerDto;
 
-    // Pre-check checks (fast fails)
     if (await this.usersService.findOneByEmail(email)) {
       throw new BadRequestException('User with this email already exists.');
     }
 
-    // Rely on string literal matching the DB value for the default role
     const defaultRole = await this.prisma.role.findUnique({
       where: { name: 'general public' },
     });
 
-    if (!defaultRole) {
-      throw new BadRequestException(
-        "Default role 'general public' not found. Please seed database.",
-      );
-    }
+    if (!defaultRole) throw new BadRequestException('Default role not found.');
 
-    // Check if docs are required BEFORE starting the transaction
     let roleUpgradeRequired = false;
     let requestedRoleRecord: Role | null = null;
 
-    // We check against strings now.
-    // Logic: If they aren't asking for 'general public' AND they aren't trying to be 'superadmin'
-    // (which usually shouldn't be allowed via public register anyway), then it is an upgrade request.
     if (
       requestedRoleName !== 'general public' &&
       requestedRoleName !== 'superadmin'
     ) {
       roleUpgradeRequired = true;
       if (!files || files.length === 0) {
-        throw new BadRequestException(
-          'Identity documents are required for this role.',
-        );
+        throw new BadRequestException('Identity documents are required.');
       }
-
-      // Dynamic Database Check:
-      // We check if the string provided exists in the Role table.
-      // This allows you to add new roles to DB without changing this code.
       requestedRoleRecord = await this.prisma.role.findUnique({
         where: { name: requestedRoleName },
       });
       if (!requestedRoleRecord) {
         throw new BadRequestException(
-          `The requested role '${requestedRoleName}' does not exist.`,
+          `Role '${requestedRoleName}' does not exist.`,
         );
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // 1. GENERATE TOKEN (No Expiry)
+    const token = crypto.randomBytes(32).toString('hex');
 
-    // START TRANSACTION
     try {
       await this.prisma.$transaction(async (prismaTx) => {
-        // Create User
         const user = await prismaTx.user.create({
           data: {
             name: registerDto.name,
             email: registerDto.email,
-            password: hashedPassword,
+            password: null,
             country: registerDto.country,
-            roleId: defaultRole.id, // Always assign 'general public' initially
+            roleId: defaultRole.id,
+            inviteToken: token,
+            inviteTokenExpiry: null,
           },
         });
 
-        // Handle Role Upgrade (Task + Documents)
         if (roleUpgradeRequired && requestedRoleRecord) {
-          // Create Task
           const task = await prismaTx.task.create({
             data: {
               userId: user.id,
@@ -104,7 +91,6 @@ export class AuthService {
             },
           });
 
-          // Create Documents
           const documentCreates = files.map((file) =>
             prismaTx.document.create({
               data: {
@@ -115,40 +101,64 @@ export class AuthService {
               },
             }),
           );
-
           await Promise.all(documentCreates);
         }
       });
     } catch (error) {
       console.error('Registration Transaction Failed:', error);
-      throw new InternalServerErrorException(
-        'Registration failed. Please try again.',
-      );
+      throw new InternalServerErrorException('Registration failed.');
     }
 
-    // Return Success Message
-    if (roleUpgradeRequired) {
-      return {
-        message: `Registration successful as General Public. Your request for the '${requestedRoleName}' role is pending approval.`,
-      };
-    }
+    const deepLink = `carphaapp://setup?token=${token}`;
+
+    console.log('----------------------------------------------------');
+    console.log(`[MOBILE EMAIL MOCK] To: ${email}`);
+    console.log(`[MOBILE EMAIL MOCK] Complete your registration in the app:`);
+    console.log(deepLink);
+    console.log('----------------------------------------------------');
 
     return {
-      message: 'Registration successful as General Public.',
+      message: `Registration started. Please check your email to set your password.`,
     };
+  }
+
+  async completeInvite(dto: CompleteInviteDto): Promise<{ message: string }> {
+    // 1. Find User by Token
+    const user = await this.prisma.user.findUnique({
+      where: { inviteToken: dto.token },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Invalid or used invitation link.');
+    }
+
+    if (user.email.toLowerCase() !== dto.email.toLowerCase()) {
+      throw new UnauthorizedException('Invalid credentials provided.');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        inviteToken: null,
+        inviteTokenExpiry: null,
+      },
+    });
+
+    return { message: 'Password set successfully. You can now log in.' };
   }
 
   async validateUser(email: string, pass: string): Promise<AuthUser | null> {
     const userWithRole = await this.usersService.findOneByEmail(email);
-    if (!userWithRole) return null;
+    if (!userWithRole || !userWithRole.password) return null;
 
     const isMatch = await bcrypt.compare(pass, userWithRole.password);
     return isMatch ? userWithRole : null;
   }
 
-  async signIn(
-    user: AuthUser,
-  ): Promise<{ access_token: string; role: string }> {
+  async signIn(user: AuthUser) {
     const payload = {
       sub: user.id,
       email: user.email,
